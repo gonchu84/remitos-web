@@ -23,49 +23,132 @@ function Topbar({ view, setView, reloadBranches }) {
 }
 
 /* =============== Sucursales =============== */
-function SucursalesView({ branches, onAddedOrUpdated }) {
-  const [name,setName]=useState("");
-  const [address,setAddress]=useState("");
-  const [editId,setEditId]=useState(null);
+function SucursalesView({ branches, onChanged }) {
+  const [rows, setRows] = useState(
+    (branches || []).map(b => ({ ...b }))
+  );
+  useEffect(() => {
+    setRows((branches || []).map(b => ({ ...b })));
+  }, [branches]);
 
-  const submit = async ()=>{
-    if(!name.trim()) return alert("Nombre requerido");
-    if(editId){
-      const r = await fetch(`${API}/branches/${editId}/update`, {method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({name,address})});
-      if(!r.ok) return alert("No se pudo actualizar");
-      setEditId(null);
-    }else{
-      const r = await fetch(`${API}/branches/add`, {method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({name,address})});
-      if(!r.ok) return alert("No se pudo crear");
+  const save = async (row) => {
+    try {
+      const r = await fetch(`${API}/branches/${row.id}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: row.name || "",
+          address: row.address || "",
+          phone: (row.phone || "").replace(/\D+/g, "") // solo números
+        })
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j.error || "No se pudo guardar");
+        return;
+      }
+      onChanged?.(); // recargar lista desde el backend
+    } catch (e) {
+      console.error(e);
+      alert("Error de red");
     }
-    setName(""); setAddress(""); onAddedOrUpdated?.();
   };
-  const edit = (b)=>{ setEditId(b.id); setName(b.name); setAddress(b.address||""); };
-  const del = async (id)=>{ if(!confirm("¿Eliminar sucursal?"))return; await fetch(`${API}/branches/${id}/delete`,{method:"POST"}); onAddedOrUpdated?.(); };
+
+  const add = async () => {
+    const name = prompt("Nombre de la sucursal:", "");
+    if (!name) return;
+    const address = prompt("Dirección:", "") || "";
+    const phone = (prompt("Teléfono (solo números, sin 0 ni 15):", "") || "").replace(/\D+/g, "");
+    try {
+      const r = await fetch(`${API}/branches/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, address, phone })
+      });
+      if (!r.ok) { alert("No se pudo crear"); return; }
+      onChanged?.();
+    } catch (e) {
+      console.error(e);
+      alert("Error de red");
+    }
+  };
+
+  const del = async (id) => {
+    if (!confirm("¿Eliminar sucursal?")) return;
+    try {
+      const r = await fetch(`${API}/branches/${id}/delete`, { method: "POST" });
+      if (!r.ok) { alert("No se pudo eliminar"); return; }
+      onChanged?.();
+    } catch (e) {
+      console.error(e);
+      alert("Error de red");
+    }
+  };
 
   return (
-    <div className="card">
-      <h2>Sucursales</h2>
-      <div className="row" style={{gap:8,flexWrap:"wrap",margin:"8px 0 12px"}}>
-        <input className="input" placeholder="Nombre" value={name} onChange={e=>setName(e.target.value)} style={{flex:"1 1 240px"}}/>
-        <input className="input" placeholder="Dirección" value={address} onChange={e=>setAddress(e.target.value)} style={{flex:"2 1 340px"}}/>
-        <button onClick={submit}>{editId?"Guardar":"Agregar"}</button>
-        {editId && <button className="secondary" onClick={()=>{setEditId(null);setName("");setAddress("");}}>Cancelar</button>}
+    <div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <h2 style={{ marginRight: "auto" }}>Sucursales</h2>
+        <button onClick={add}>➕ Agregar sucursal</button>
       </div>
-      <table>
-        <thead><tr><th>ID</th><th>Nombre</th><th>Dirección</th><th>Acciones</th></tr></thead>
-        <tbody>
-        {branches.map(b=>(
-          <tr key={b.id}>
-            <td>{b.id}</td><td>{b.name}</td><td>{b.address}</td>
-            <td>
-              <button className="secondary" onClick={()=>edit(b)}>Editar</button>{" "}
-              <button onClick={()=>del(b.id)}>Eliminar</button>
-            </td>
-          </tr>
-        ))}
-        </tbody>
-      </table>
+
+      {rows.length === 0 ? (
+        <p style={{ color: "#777" }}>No hay sucursales. Tocá “Seed” para cargarlas.</p>
+      ) : (
+        <table cellPadding="6" style={{ borderCollapse: "collapse", width: "100%", border: "1px solid #ddd" }}>
+          <thead style={{ background: "#f5f5f5" }}>
+            <tr>
+              <th align="left">ID</th>
+              <th align="left">Nombre</th>
+              <th align="left">Dirección</th>
+              <th align="left">Teléfono (solo números)</th>
+              <th align="left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b, i) => (
+              <tr key={b.id} style={{ borderTop: "1px solid #eee" }}>
+                <td>{b.id}</td>
+                <td>
+                  <input
+                    value={b.name || ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setRows(prev => prev.map((x, idx) => idx === i ? { ...x, name: v } : x));
+                    }}
+                    style={{ width: "100%", padding: 6 }}
+                  />
+                </td>
+                <td>
+                  <input
+                    value={b.address || ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setRows(prev => prev.map((x, idx) => idx === i ? { ...x, address: v } : x));
+                    }}
+                    style={{ width: "100%", padding: 6 }}
+                  />
+                </td>
+                <td>
+                  <input
+                    value={b.phone || ""}
+                    placeholder="1122334455"
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D+/g, "");
+                      setRows(prev => prev.map((x, idx) => idx === i ? { ...x, phone: v } : x));
+                    }}
+                    style={{ width: "100%", padding: 6 }}
+                  />
+                </td>
+                <td>
+                  <button onClick={() => save(rows[i])}>💾 Guardar</button>{" "}
+                  <button onClick={() => del(b.id)} style={{ color: "#b00" }}>🗑 Eliminar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -141,7 +224,7 @@ function ProductosView(){
 /* =============== Pre‑Remito =============== */
 function PreRemitoView({ branches }){
   const [branchId,setBranchId]=useState("");
-  const [origin,setOrigin]=useState("Juan Manuel de Rosas 1325"); // default Casa Central
+  const [origin,setOrigin]=useState("Juan Manuel de Rosas 1325");
   const [q,setQ]=useState("");
   const [qty,setQty]=useState(1);
   const [sugg,setSugg]=useState([]);
@@ -168,18 +251,15 @@ function PreRemitoView({ branches }){
     if(e.key!=="Enter") return;
     const txt = q.trim();
     if(!txt) return;
-    // Si parece código de barras, intentamos by-code
     if(isBarcode(txt)){
       const r = await fetch(`${API}/products/by-code/${encodeURIComponent(txt)}`);
       if(r.ok){
         const j=await r.json(); addFromProd(j.product); return;
       }else{
-        // desconocido: MODAL crear o vincular
         openUnknownModal(txt);
         return;
       }
     }
-    // Si no es código, forzamos elegir de sugerencias para evitar “texto suelto”
     if(sugg.length>0){ addFromProd(sugg[0]); }
     else alert("Elegí un producto existente (o escaneá un código).");
   };
@@ -200,8 +280,8 @@ function PreRemitoView({ branches }){
     const r = await fetch(`${API}/remitos`, { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     const j = await r.json().catch(()=>({}));
     if(!j.ok) return alert(j.error||"No pude crear el remito");
-    window.open(`${API}${j.pdf}`, "_blank");             // PDF en nueva pestaña
-    window.open(`${API}${j.publicUrl}`, "_blank");       // Link de recepción
+    window.open(`${API}${j.pdf}`, "_blank");             // PDF
+    window.open(`${API}${j.publicUrl}`, "_blank");       // Recepción
   };
 
   // ===== Modal: Crear/Vincular código desconocido =====
@@ -313,8 +393,8 @@ function PreRemitoView({ branches }){
         <div className="modal">
           <h3>El código <code>{uCode}</code> no existe</h3>
           <div className="row" style={{margin:"8px 0"}}>
-            <button className={uTab==="create"?"":"secondary"} onClick={()=>setUTab("create")}>➕ Crear producto</button>
-            <button className={uTab==="link"?"":"secondary"} onClick={()=>setUTab("link")}>🔗 Vincular a existente</button>
+            <button className={uTab==="create"?"": "secondary"} onClick={()=>setUTab("create")}>➕ Crear producto</button>
+            <button className={uTab==="link"?"": "secondary"} onClick={()=>setUTab("link")}>🔗 Vincular a existente</button>
             <span style={{flex:1}}/>
             <button className="secondary" onClick={()=>setUOpen(false)}>Cerrar</button>
           </div>
@@ -406,7 +486,7 @@ export default function App(){
       {view==="central" && <CentralView/>}
       {view==="pre" && <PreRemitoView branches={branches}/>}
       {view==="productos" && <ProductosView/>}
-      {view==="sucursales" && <SucursalesView branches={branches} onAddedOrUpdated={loadBranches}/>}
+      {view === "sucursales" && <SucursalesView branches={branches} onChanged={loadBranches} />}
     </div>
   );
 }
