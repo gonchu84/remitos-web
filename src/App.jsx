@@ -362,13 +362,25 @@ function PreRemitoView({ branches }){
 
       <div style={{marginTop:12, position:"relative"}}>
         <label>Producto (escaneá código o escribí descripción)</label>
-        <div className="row" style={{gap:8}}>
-          ref={prodInputRef}
-          <input className="input" placeholder="Ej. HYLAS, KUMARA… o 7790…" value={q}
-            onChange={e=>onChangeQ(e.target.value)} onKeyDown={onKeyDownQ}/>
-          <input className="input" type="number" min="1" style={{width:120}} value={qty}
+        <div className="row" style={{gap:8}}>         
+          <input 
+             ref={prodInputRef}
+             className="input" 
+             placeholder="Ej. HYLAS, KUMARA… o 7790…" 
+             value={q}
+              onChange={e=>onChangeQ(e.target.value)} 
+              onKeyDown={onKeyDownQ}
+          />
+          <input 
+            className="input" 
+            type="number" 
+            min="1" 
+            style={{width:120}} 
+            value={qty}
             onChange={e=>setQty(e.target.value)} />
-          <button className="secondary" onClick={()=>{
+          <button 
+            className="secondary" 
+            onClick={()=>{
             if(sugg.length>0) addFromProd(sugg[0]); else alert("Elegí un producto existente.");
           }}>Agregar</button>
         </div>
