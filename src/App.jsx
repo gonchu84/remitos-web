@@ -231,6 +231,9 @@ function PreRemitoView({ branches }){
   const [openSugg,setOpenSugg]=useState(false);
   const [items,setItems]=useState([]); // {id?, description, qty}
   const boxRef = useRef(null);
+  const prodInputRef = useRef(null);
+
+
 
   const selectedBranch = useMemo(()=> branches.find(b=>String(b.id)===String(branchId)), [branches,branchId]);
   const addFromProd = (p)=>{
@@ -269,20 +272,37 @@ function PreRemitoView({ branches }){
   const del=(i)=> setItems(prev=> prev.filter((_,idx)=>idx!==i));
   const totalUnidades = useMemo(()=> items.reduce((a,x)=>a+(parseInt(x.qty,10)||0),0), [items]);
 
-  const crearRemito = async ()=>{
-    if(!selectedBranch) return alert("Elegí una sucursal destino.");
-    if(items.length===0) return alert("Agregá al menos un renglón.");
-    const payload = {
-      branch: { id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address },
-      origin, date: new Date().toISOString().slice(0,10),
-      items: items.map(x=>({ description: x.description, qty: x.qty }))
-    };
-    const r = await fetch(`${API}/remitos`, { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const j = await r.json().catch(()=>({}));
-    if(!j.ok) return alert(j.error||"No pude crear el remito");
-    window.open(`${API}${j.pdf}`, "_blank");             // PDF
-    window.open(`${API}${j.publicUrl}`, "_blank");       // Recepción
+  const crearRemito = async () => {
+  if(!selectedBranch) return alert("Elegí una sucursal destino.");
+  if(items.length===0) return alert("Agregá al menos un renglón.");
+
+  const payload = {
+    branch: { id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address },
+    origin,
+    date: new Date().toISOString().slice(0,10),
+    items: items.map(x=>({ description: x.description, qty: x.qty }))
   };
+
+  const r = await fetch(`${API}/remitos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const j = await r.json().catch(()=>({}));
+  if(!j.ok) return alert(j.error || "No pude crear el remito");
+
+  // 👉 SOLO abro la página de recepción; NO abro el PDF
+  window.open(`${API}${j.publicUrl}`, "_blank");
+
+  // 👉 Reseteo el formulario para el próximo remito
+  setItems([]);
+  setQ("");
+  setQty(1);
+  setSugg([]);
+  setOpenSugg(false);
+  prodInputRef.current?.focus();
+};
 
   // ===== Modal: Crear/Vincular código desconocido =====
   const [uOpen,setUOpen]=useState(false);
@@ -343,6 +363,7 @@ function PreRemitoView({ branches }){
       <div style={{marginTop:12, position:"relative"}}>
         <label>Producto (escaneá código o escribí descripción)</label>
         <div className="row" style={{gap:8}}>
+          ref={prodInputRef}
           <input className="input" placeholder="Ej. HYLAS, KUMARA… o 7790…" value={q}
             onChange={e=>onChangeQ(e.target.value)} onKeyDown={onKeyDownQ}/>
           <input className="input" type="number" min="1" style={{width:120}} value={qty}
