@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const PIN = import.meta.env.VITE_ADMIN_PIN || "";
+const QPIN = PIN ? `?pin=${encodeURIComponent(PIN)}` : "";
+const qp = (url) => (PIN ? (url.includes("?") ? `${url}&pin=${encodeURIComponent(PIN)}` : `${url}?pin=${encodeURIComponent(PIN)}`) : url);
+
 const isBarcode = (s) => /^\d{6,}$/.test(String(s||"").replace(/\s+/g,""));
 const fold = (s)=>String(s||"").toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim();
 
@@ -9,14 +13,14 @@ function Topbar({ view, setView, reloadBranches }) {
     <div className="toolbar" style={{marginBottom:12}}>
       <div className="tabs">
         <button className={view==="central"?"active":""} onClick={()=>setView("central")}>Central</button>
-        <button className={view==="pre"?"active":""} onClick={()=>setView("pre")}>Pre‑Remito</button>
+        <button className={view==="pre"?"active":""} onClick={()=>setView("pre")}>Pre-Remito</button>
         <button className={view==="productos"?"active":""} onClick={()=>setView("productos")}>Productos</button>
         <button className={view==="sucursales"?"active":""} onClick={()=>setView("sucursales")}>Sucursales</button>
       </div>
       <span style={{marginLeft:"auto"}} className="toolbar">
         <button className="secondary" onClick={reloadBranches}>↻ Sucursales</button>
-        <a className="link" href={`${API}/admin/products-xlsx`} target="_blank" rel="noreferrer">Importar XLSX (página)</a>
-        <a className="link" href={`${API}/seed`} target="_blank" rel="noreferrer">Seed</a>
+        <a className="link" href={`${API}/admin/products-xlsx${QPIN}`} target="_blank" rel="noreferrer">Importar XLSX (página)</a>
+        <a className="link" href={`${API}/seed${QPIN}`} target="_blank" rel="noreferrer">Seed</a>
       </span>
     </div>
   );
@@ -33,13 +37,13 @@ function SucursalesView({ branches, onChanged }) {
 
   const save = async (row) => {
     try {
-      const r = await fetch(`${API}/branches/${row.id}/update`, {
+      const r = await fetch(qp(`${API}/branches/${row.id}/update`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: row.name || "",
           address: row.address || "",
-          phone: (row.phone || "").replace(/\D+/g, "") // solo números
+          phone: (row.phone || "").replace(/\D+/g, "")
         })
       });
       if (!r.ok) {
@@ -47,7 +51,7 @@ function SucursalesView({ branches, onChanged }) {
         alert(j.error || "No se pudo guardar");
         return;
       }
-      onChanged?.(); // recargar lista desde el backend
+      onChanged?.();
     } catch (e) {
       console.error(e);
       alert("Error de red");
@@ -60,7 +64,7 @@ function SucursalesView({ branches, onChanged }) {
     const address = prompt("Dirección:", "") || "";
     const phone = (prompt("Teléfono (solo números, sin 0 ni 15):", "") || "").replace(/\D+/g, "");
     try {
-      const r = await fetch(`${API}/branches/add`, {
+      const r = await fetch(qp(`${API}/branches/add`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, address, phone })
@@ -76,7 +80,7 @@ function SucursalesView({ branches, onChanged }) {
   const del = async (id) => {
     if (!confirm("¿Eliminar sucursal?")) return;
     try {
-      const r = await fetch(`${API}/branches/${id}/delete`, { method: "POST" });
+      const r = await fetch(qp(`${API}/branches/${id}/delete`), { method: "POST" });
       if (!r.ok) { alert("No se pudo eliminar"); return; }
       onChanged?.();
     } catch (e) {
@@ -93,7 +97,7 @@ function SucursalesView({ branches, onChanged }) {
       </div>
 
       {rows.length === 0 ? (
-        <p style={{ color: "#777" }}>No hay sucursales. Tocá “Seed” para cargarlas.</p>
+        <p style={{ color: "#777" }}>No hay sucursales. Tocá “Seed”.</p>
       ) : (
         <table cellPadding="6" style={{ borderCollapse: "collapse", width: "100%", border: "1px solid #ddd" }}>
           <thead style={{ background: "#f5f5f5" }}>
@@ -163,20 +167,20 @@ function ProductosView(){
     setRows(await r.json());
   };
   useEffect(()=>{ load(); },[]);
-  const upd = async (id,description)=>{ await fetch(`${API}/products/${id}/update`,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({description})}); };
-  const del = async (id)=>{ if(!confirm("¿Eliminar producto?"))return; await fetch(`${API}/products/${id}/delete`,{method:"POST"}); load(); };
+  const upd = async (id,description)=>{ await fetch(qp(`${API}/products/${id}/update`),{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({description})}); };
+  const del = async (id)=>{ if(!confirm("¿Eliminar producto?"))return; await fetch(qp(`${API}/products/${id}/delete`),{method:"POST"}); load(); };
   const addCode = async (id)=>{ const code = prompt("Nuevo código de barras:", ""); if(!code) return;
-    const r=await fetch(`${API}/products/${id}/addCode`,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    const r=await fetch(qp(`${API}/products/${id}/addCode`),{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
     if(!r.ok){ const j=await r.json().catch(()=>({})); alert(j.error||"No se pudo agregar"); } load();
   };
   const removeCode = async (id,code)=>{ if(!confirm(`Quitar código ${code}?`))return;
-    await fetch(`${API}/products/${id}/removeCode`,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    await fetch(qp(`${API}/products/${id}/removeCode`),{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
     load();
   };
   const importJson = async ()=>{
     if(!file) return alert("Elegí un XLSX");
     const fd = new FormData(); fd.append("file", file);
-    const r = await fetch(`${API}/admin/products-xlsx-json`, { method:"POST", body: fd });
+    const r = await fetch(qp(`${API}/admin/products-xlsx-json`), { method:"POST", body: fd });
     const j = await r.json().catch(()=>({}));
     if(!j.ok) return alert(j.error||"Falló importación");
     alert(`Importado:\nFilas: ${j.summary.totalRows}\nCreados: ${j.summary.created}\nCódigos agregados: ${j.summary.codesAdded}\nDuplicados: ${j.summary.duplicatesSkipped}`);
@@ -221,7 +225,7 @@ function ProductosView(){
   );
 }
 
-/* =============== Pre‑Remito =============== */
+/* =============== Pre-Remito =============== */
 function PreRemitoView({ branches }){
   const [branchId,setBranchId]=useState("");
   const [origin,setOrigin]=useState("Juan Manuel de Rosas 1325");
@@ -229,11 +233,9 @@ function PreRemitoView({ branches }){
   const [qty,setQty]=useState(1);
   const [sugg,setSugg]=useState([]);
   const [openSugg,setOpenSugg]=useState(false);
-  const [items,setItems]=useState([]); // {id?, description, qty}
+  const [items,setItems]=useState([]);
   const boxRef = useRef(null);
   const prodInputRef = useRef(null);
-
-
 
   const selectedBranch = useMemo(()=> branches.find(b=>String(b.id)===String(branchId)), [branches,branchId]);
   const addFromProd = (p)=>{
@@ -259,7 +261,7 @@ function PreRemitoView({ branches }){
       if(r.ok){
         const j=await r.json(); addFromProd(j.product); return;
       }else{
-        openUnknownModal(txt);
+        alert("Código desconocido. Cargalo en Productos.");
         return;
       }
     }
@@ -273,72 +275,40 @@ function PreRemitoView({ branches }){
   const totalUnidades = useMemo(()=> items.reduce((a,x)=>a+(parseInt(x.qty,10)||0),0), [items]);
 
   const crearRemito = async () => {
-  if(!selectedBranch) return alert("Elegí una sucursal destino.");
-  if(items.length===0) return alert("Agregá al menos un renglón.");
+    if(!selectedBranch) return alert("Elegí una sucursal destino.");
+    if(items.length===0) return alert("Agregá al menos un renglón.");
 
-  const payload = {
-    branch: { id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address },
-    origin,
-    date: new Date().toISOString().slice(0,10),
-    items: items.map(x=>({ description: x.description, qty: x.qty }))
+    const payload = {
+      branch: { id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address },
+      origin,
+      date: new Date().toISOString().slice(0,10),
+      items: items.map(x=>({ description: x.description, qty: x.qty }))
+    };
+
+    const r = await fetch(qp(`${API}/remitos`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const j = await r.json().catch(()=>({}));
+    if(!j.ok) return alert(j.error || "No pude crear el remito");
+
+    // 👉 SOLO abro la página de recepción; NO abro el PDF
+    window.open(`${API}${j.publicUrl}`, "_blank");
+
+    // 👉 Reseteo el formulario para el próximo remito
+    setItems([]);
+    setQ("");
+    setQty(1);
+    setSugg([]);
+    setOpenSugg(false);
+    prodInputRef.current?.focus();
   };
-
-  const r = await fetch(`${API}/remitos`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const j = await r.json().catch(()=>({}));
-  if(!j.ok) return alert(j.error || "No pude crear el remito");
-
-  // 👉 SOLO abro la página de recepción; NO abro el PDF
-  window.open(`${API}${j.publicUrl}`, "_blank");
-
-  // 👉 Reseteo el formulario para el próximo remito
-  setItems([]);
-  setQ("");
-  setQty(1);
-  setSugg([]);
-  setOpenSugg(false);
-  prodInputRef.current?.focus();
-};
-
-  // ===== Modal: Crear/Vincular código desconocido =====
-  const [uOpen,setUOpen]=useState(false);
-  const [uCode,setUCode]=useState("");
-  const [uTab,setUTab]=useState("create");
-  const [uDesc,setUDesc]=useState("");
-  const [uQ,setUQ]=useState("");
-  const [uList,setUList]=useState([]);
-
-  function openUnknownModal(code){ setUOpen(true); setUCode(code); setUTab("create"); setUDesc(""); setUQ(""); setUList([]); }
-  async function uCreate(){
-    if(!uDesc.trim()) return alert("Escribí la descripción");
-    const r = await fetch(`${API}/products`, { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({ description: uDesc, code: uCode }) });
-    if(!r.ok) return alert("No pude crear el producto");
-    alert("Producto creado. Volvé a escanear o escribí para agregarlo.");
-    setUOpen(false);
-  }
-  useEffect(()=>{ // buscar para vincular
-    if(uTab!=="link") return;
-    const t = setTimeout(async ()=>{
-      const r = await fetch(`${API}/products?q=${encodeURIComponent(uQ)}`);
-      const data = await r.json().catch(()=>[]);
-      setUList(Array.isArray(data)?data:[]);
-    }, 200);
-    return ()=>clearTimeout(t);
-  }, [uQ,uTab]);
-  async function uLink(p){
-    const r = await fetch(`${API}/products/${p.id}/addCode`, { method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: uCode }) });
-    if(!r.ok){ const j=await r.json().catch(()=>({})); return alert(j.error||"No se pudo vincular"); }
-    alert("Código vinculado. Volvé a escanear o elegí el producto para agregarlo.");
-    setUOpen(false);
-  }
 
   return (
     <div className="card" ref={boxRef}>
-      <h2>Pre‑Remito</h2>
+      <h2>Pre-Remito</h2>
 
       <div className="row" style={{flexWrap:"wrap", gap:12}}>
         <div style={{flex:"1 1 280px"}}>
@@ -362,25 +332,12 @@ function PreRemitoView({ branches }){
 
       <div style={{marginTop:12, position:"relative"}}>
         <label>Producto (escaneá código o escribí descripción)</label>
-        <div className="row" style={{gap:8}}>         
-          <input 
-             ref={prodInputRef}
-             className="input" 
-             placeholder="Ej. HYLAS, KUMARA… o 7790…" 
-             value={q}
-              onChange={e=>onChangeQ(e.target.value)} 
-              onKeyDown={onKeyDownQ}
-          />
-          <input 
-            className="input" 
-            type="number" 
-            min="1" 
-            style={{width:120}} 
-            value={qty}
+        <div className="row" style={{gap:8}}>
+          <input ref={prodInputRef} className="input" placeholder="Ej. HYLAS, KUMARA… o 7790…" value={q}
+            onChange={e=>onChangeQ(e.target.value)} onKeyDown={onKeyDownQ}/>
+          <input className="input" type="number" min="1" style={{width:120}} value={qty}
             onChange={e=>setQty(e.target.value)} />
-          <button 
-            className="secondary" 
-            onClick={()=>{
+          <button className="secondary" onClick={()=>{
             if(sugg.length>0) addFromProd(sugg[0]); else alert("Elegí un producto existente.");
           }}>Agregar</button>
         </div>
@@ -418,40 +375,6 @@ function PreRemitoView({ branches }){
         <div className="row" style={{justifyContent:"space-between", marginTop:10}}>
           <div style={{color:"var(--muted)"}}>Total renglones: <b>{items.length}</b> — Unidades: <b>{totalUnidades}</b></div>
           <button onClick={crearRemito} style={{fontWeight:600}}>Crear Remito</button>
-        </div>
-      </div>
-
-      {/* Modal código desconocido */}
-      <div className="modal-backdrop" style={{display:uOpen?"flex":"none"}}>
-        <div className="modal">
-          <h3>El código <code>{uCode}</code> no existe</h3>
-          <div className="row" style={{margin:"8px 0"}}>
-            <button className={uTab==="create"?"": "secondary"} onClick={()=>setUTab("create")}>➕ Crear producto</button>
-            <button className={uTab==="link"?"": "secondary"} onClick={()=>setUTab("link")}>🔗 Vincular a existente</button>
-            <span style={{flex:1}}/>
-            <button className="secondary" onClick={()=>setUOpen(false)}>Cerrar</button>
-          </div>
-          {uTab==="create" ? (
-            <div>
-              <label>Descripción</label>
-              <input className="input" value={uDesc} onChange={e=>setUDesc(e.target.value)} />
-              <div className="row" style={{marginTop:10}}><button onClick={uCreate}>Crear</button></div>
-            </div>
-          ) : (
-            <div>
-              <label>Buscar producto</label>
-              <input className="input" value={uQ} onChange={e=>setUQ(e.target.value)} placeholder="Ej. KUMARA" />
-              <div style={{maxHeight:260,overflow:"auto",border:"1px solid var(--line)",borderRadius:10,padding:6,marginTop:8}}>
-                {uList.length===0 && <div style={{color:"var(--muted)"}}>Sin resultados</div>}
-                {uList.slice(0,20).map(p=>(
-                  <div key={p.id} style={{padding:8,borderTop:"1px solid #eef2f7",cursor:"pointer"}} onClick={()=>uLink(p)}>
-                    <div style={{fontWeight:600}}>{p.description}</div>
-                    <div style={{color:"var(--muted)",fontSize:12}}>{(p.codes||[]).join(" · ")||"—"}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
